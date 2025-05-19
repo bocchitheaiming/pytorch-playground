@@ -19,12 +19,12 @@ from resnet import resnet18
 parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
 parser.add_argument('--wd', type=float, default=0.0001, help='weight decay')
 parser.add_argument('--batch_size', type=int, default=200, help='input batch size for training (default: 64)')
-parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train (default: 10)')
+parser.add_argument('--epochs', type=int, default=3, help='number of epochs to train (default: 10)')
 parser.add_argument('--lr', type=float, default=0.01, help='learning rate (default: 1e-3)')
 parser.add_argument('--gpu', default=None, help='index of gpus to use')
 parser.add_argument('--ngpu', type=int, default=1, help='number of gpus to use')
 parser.add_argument('--seed', type=int, default=117, help='random seed (default: 1)')
-parser.add_argument('--log_interval', type=int, default=100,  help='how many batches to wait before logging training status')
+parser.add_argument('--log_interval', type=int, default=10,  help='how many batches to wait before logging training status')
 parser.add_argument('--test_interval', type=int, default=5,  help='how many epochs to wait before another test')
 parser.add_argument('--logdir', default='log/default', help='folder to save to the log')
 parser.add_argument('--data_root', default='./data', help='folder to save the model')
@@ -78,6 +78,7 @@ decreasing_lr = list(map(int, args.decreasing_lr.split(',')))
 print('decreasing_lr: ' + str(decreasing_lr))
 best_acc, old_file = 0, None
 t_begin = time.time()
+loss_ls = []
 try:
     # ready to go
     for epoch in range(args.epochs):
@@ -103,6 +104,7 @@ try:
                 print('Train Epoch: {} [{}/{}] Loss: {:.6f} Acc: {:.4f} lr: {:.2e}'.format(
                     epoch, batch_idx * len(data), len(train_loader.dataset),
                     loss.data, acc, optimizer.param_groups[0]['lr']))
+                loss_ls.append((epoch, batch_idx, float(loss.data)))
 
         elapse_time = time.time() - t_begin
         speed_epoch = elapse_time / (epoch + 1)
@@ -135,6 +137,10 @@ try:
                 misc.model_snapshot(model, new_file, old_file=old_file, verbose=True)
                 best_acc = acc
                 old_file = new_file
+
+    import pandas as pd
+    loss_df = pd.DataFrame(loss_ls, columns=['epoch', 'batch_idx', 'loss'])
+    loss_df.to_csv(os.path.join(args.logdir, 'loss.csv'), index=False)
 except Exception as e:
     import traceback
     traceback.print_exc()
