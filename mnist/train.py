@@ -1,6 +1,10 @@
 import argparse
 import os
 import time
+import datetime
+
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from utee import misc
 import torch
@@ -10,11 +14,12 @@ from torch.autograd import Variable
 
 import dataset
 import model
+from resnet import resnet18
 
 parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
 parser.add_argument('--wd', type=float, default=0.0001, help='weight decay')
 parser.add_argument('--batch_size', type=int, default=200, help='input batch size for training (default: 64)')
-parser.add_argument('--epochs', type=int, default=40, help='number of epochs to train (default: 10)')
+parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train (default: 10)')
 parser.add_argument('--lr', type=float, default=0.01, help='learning rate (default: 1e-3)')
 parser.add_argument('--gpu', default=None, help='index of gpus to use')
 parser.add_argument('--ngpu', type=int, default=1, help='number of gpus to use')
@@ -22,16 +27,26 @@ parser.add_argument('--seed', type=int, default=117, help='random seed (default:
 parser.add_argument('--log_interval', type=int, default=100,  help='how many batches to wait before logging training status')
 parser.add_argument('--test_interval', type=int, default=5,  help='how many epochs to wait before another test')
 parser.add_argument('--logdir', default='log/default', help='folder to save to the log')
-parser.add_argument('--data_root', default='/tmp/public_dataset/pytorch/', help='folder to save the model')
+parser.add_argument('--data_root', default='./data', help='folder to save the model')
 parser.add_argument('--decreasing_lr', default='80,120', help='decreasing strategy')
 args = parser.parse_args()
-args.logdir = os.path.join(os.path.dirname(__file__), args.logdir)
+
+# 创建带时间戳的唯一日志目录
+timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+args.logdir = os.path.join(os.path.dirname(__file__), f'log/run_{timestamp}')
 misc.logger.init(args.logdir, 'train_log')
 print = misc.logger.info
 
 # select gpu
-args.gpu = misc.auto_select_gpu(utility_bound=0, num_gpu=args.ngpu, selected_gpus=args.gpu)
-args.ngpu = len(args.gpu)
+# 仅使用cpu
+# args.gpu = misc.auto_select_gpu(utility_bound=0, num_gpu=args.ngpu, selected_gpus=args.gpu)
+# args.ngpu = len(args.gpu)
+args.gpu = None
+args.ngpu = 1
+
+# 确保数据目录存在
+if not os.path.exists(args.data_root):
+    os.makedirs(args.data_root, exist_ok=True)
 
 # logger
 misc.ensure_dir(args.logdir)
@@ -41,19 +56,21 @@ for k, v in args.__dict__.items():
 print("========================================")
 
 # seed
-args.cuda = torch.cuda.is_available()
-torch.manual_seed(args.seed)
-if args.cuda:
-    torch.cuda.manual_seed(args.seed)
+args.cuda = False
+# args.cuda = torch.cuda.is_available()
+# torch.manual_seed(args.seed)
+# if args.cuda:
+#     torch.cuda.manual_seed(args.seed)
 
 # data loader
-train_loader, test_loader = dataset.get(batch_size=args.batch_size, data_root=args.data_root, num_workers=1)
+train_loader, test_loader = dataset.get(batch_size=args.batch_size, data_root=args.data_root, num_workers=0)
 
 # model
-model = model.mnist(input_dims=784, n_hiddens=[256, 256], n_class=10)
-model = torch.nn.DataParallel(model, device_ids= range(args.ngpu))
-if args.cuda:
-    model.cuda()
+# model = model.mnist(input_dims=784, n_hiddens=[256, 256], n_class=10)
+model = resnet18(pretrained=False, model_root=None, num_classes=10)
+# model = torch.nn.DataParallel(model, device_ids= range(args.ngpu))
+# if args.cuda:
+#     model.cuda()
 
 # optimizer
 optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.wd, momentum=0.9)
